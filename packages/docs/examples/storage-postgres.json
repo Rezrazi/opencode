@@ -1,0 +1,8 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "storage": {
+    "driver": "postgres",
+    "url": "postgres://user:password@localhost:5432/opencode",
+    "poolSize": 10
+  }
+}

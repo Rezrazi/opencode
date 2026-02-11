@@ -1,0 +1,211 @@
+# Storage Configuration Guide
+
+OpenCode now supports multiple storage backends for storing sessions, messages, and other data. You can configure the storage driver in your opencode.json configuration file.
+
+## Available Storage Drivers
+
+### JSON (Default)
+File-based storage using JSON files. This is the default and maintains backward compatibility with existing installations.
+
+**Configuration:**
+```json
+{
+  "storage": {
+    "driver": "json",
+    "path": "/path/to/storage"  // Optional, defaults to ~/.local/share/opencode/storage
+  }
+}
+```
+
+**Pros:**
+- No additional dependencies
+- Easy to backup and inspect
+- Works offline
+- Backward compatible
+
+**Cons:**
+- Not suitable for large datasets
+- No built-in querying capabilities
+- File locks may cause issues in networked filesystems
+
+### SQLite
+Database storage using SQLite. Requires no external database server.
+
+**Configuration:**
+```json
+{
+  "storage": {
+    "driver": "sqlite",
+    "database": "/path/to/opencode.db"  // Optional, defaults to storage/opencode.db
+  }
+}
+```
+
+**Pros:**
+- Fast and efficient
+- Built-in to Bun runtime
+- Atomic transactions
+- Better concurrency than JSON files
+- Compact storage
+
+**Cons:**
+- Requires migration from JSON
+- Single file database
+
+### PostgreSQL
+Database storage using PostgreSQL. Requires an external PostgreSQL server.
+
+**Configuration:**
+```json
+{
+  "storage": {
+    "driver": "postgres",
+    "url": "postgres://user:password@localhost:5432/opencode",
+    "poolSize": 10  // Optional, defaults to 10
+  }
+}
+```
+
+**Installation:**
+```bash
+bun add pg
+```
+
+**Pros:**
+- Highly scalable
+- Supports multiple concurrent clients
+- Advanced querying capabilities
+- Network accessible
+- JSONB support for efficient storage
+
+**Cons:**
+- Requires external database server
+- More complex setup
+- Requires additional dependencies
+
+## Migration Between Drivers
+
+OpenCode provides a command-line utility to migrate data between different storage backends.
+
+### Interactive Migration
+
+```bash
+opencode storage:migrate
+```
+
+This will prompt you for:
+1. Source driver type
+2. Source driver configuration
+3. Destination driver type
+4. Destination driver configuration
+
+### Non-Interactive Migration
+
+```bash
+# Migrate from JSON to SQLite
+opencode storage:migrate \
+  --from json \
+  --to sqlite \
+  --to-config '{"driver":"sqlite","database":"./opencode.db"}'
+
+# Migrate from SQLite to PostgreSQL
+opencode storage:migrate \
+  --from sqlite \
+  --from-config '{"driver":"sqlite","database":"./opencode.db"}' \
+  --to postgres \
+  --to-config '{"driver":"postgres","url":"postgres://user:pass@localhost/opencode"}'
+```
+
+### Export to File
+
+You can also export data to a JSON file for backup or inspection:
+
+```bash
+opencode storage:migrate \
+  --from sqlite \
+  --from-config '{"driver":"sqlite","database":"./opencode.db"}' \
+  --output backup.json
+```
+
+## Migration Best Practices
+
+1. **Backup Your Data**: Always backup your data before migration
+   ```bash
+   # For JSON storage
+   tar -czf opencode-backup.tar.gz ~/.local/share/opencode/storage
+   
+   # For SQLite
+   cp ~/.local/share/opencode/storage/opencode.db opencode.db.backup
+   ```
+
+2. **Test the Migration**: Test on a copy of your data first
+   ```bash
+   # Copy your data to a test location
+   cp -r ~/.local/share/opencode/storage /tmp/test-storage
+   
+   # Run migration with test data
+   opencode storage:migrate \
+     --from json \
+     --from-config '{"driver":"json","path":"/tmp/test-storage"}' \
+     --to sqlite \
+     --to-config '{"driver":"sqlite","database":"/tmp/test.db"}'
+   ```
+
+3. **Update Configuration**: After successful migration, update your opencode.json
+   ```json
+   {
+     "storage": {
+       "driver": "sqlite",
+       "database": "~/.local/share/opencode/storage/opencode.db"
+     }
+   }
+   ```
+
+4. **Verify the Migration**: Start OpenCode and verify your sessions are accessible
+   ```bash
+   opencode session list
+   ```
+
+## Environment Variables
+
+You can also configure storage via environment variables:
+
+```bash
+# For development/testing
+export OPENCODE_STORAGE_DRIVER=sqlite
+export OPENCODE_STORAGE_DATABASE=/tmp/test.db
+```
+
+## Troubleshooting
+
+### Migration Fails
+- Check that source and destination configurations are correct
+- Ensure you have write permissions to the destination
+- For PostgreSQL, ensure the database exists and is accessible
+
+### PostgreSQL Connection Issues
+- Verify the connection URL format: `postgres://user:password@host:port/database`
+- Ensure the PostgreSQL server is running
+- Check firewall settings if connecting remotely
+- Verify the database exists: `createdb opencode`
+
+### Performance Issues with JSON Storage
+- Consider migrating to SQLite for better performance
+- Check available disk space
+- Ensure the storage directory is on a local filesystem (not network)
+
+## Schema Information
+
+All drivers use a key-value storage model with the following structure:
+
+**Storage Keys:**
+- `project/{projectID}` - Project metadata
+- `session/{projectID}/{sessionID}` - Session information
+- `message/{sessionID}/{messageID}` - Message data
+- `part/{messageID}/{partID}` - Message parts
+- `session_diff/{sessionID}` - Session diffs
+- `permission/{projectID}` - Permission rulesets
+- `share/{shareID}` - Share information
+
+**Data Format:**
+All data is stored as JSON, ensuring compatibility across drivers. The structure is maintained regardless of the backend.
