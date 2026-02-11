@@ -8,6 +8,8 @@ import z from "zod"
  */
 export class PostgresDriver implements StorageDriver.Driver {
   private log = Log.create({ service: "storage:postgres" })
+  // Using any here since postgres is dynamically imported to avoid hard dependency
+  // Type would be: import('postgres').Sql in a real setup
   private sql: any
   private poolSize: number
 
@@ -24,7 +26,9 @@ export class PostgresDriver implements StorageDriver.Driver {
       )
     })
 
-    this.sql = postgres.default(this.config.url, {
+    // Handle both ESM and CommonJS export patterns
+    const createConnection = postgres.default || postgres
+    this.sql = createConnection(this.config.url, {
       max: this.poolSize,
     })
 
@@ -194,6 +198,8 @@ export class PostgresDriver implements StorageDriver.Driver {
   }
 
   async import(data: StorageDriver.ExportData): Promise<void> {
+    // Using any for sql parameter since it's passed from the postgres transaction context
+    // Type would be: import('postgres').TransactionSql in a real setup
     await this.sql.begin(async (sql: any) => {
       const categories = [
         { key: "projects", items: data.projects },
