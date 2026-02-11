@@ -4,12 +4,11 @@ import { NamedError } from "@opencode-ai/util/error"
 import z from "zod"
 
 /**
- * PostgreSQL storage driver
- * Uses pg library for PostgreSQL connections
+ * PostgreSQL storage driver using native postgres client
  */
 export class PostgresDriver implements StorageDriver.Driver {
   private log = Log.create({ service: "storage:postgres" })
-  private pool: any
+  private sql: any
   private poolSize: number
 
   constructor(private config: Extract<StorageDriver.Config, { driver: "postgres" }>) {
@@ -17,15 +16,15 @@ export class PostgresDriver implements StorageDriver.Driver {
   }
 
   async init() {
-    // Dynamically import postgres to avoid adding it as a hard dependency
-    const { Pool } = await import("pg").catch(() => {
+    // Use postgres package which is a native JavaScript PostgreSQL client
+    // that works well with Bun
+    const postgres = await import("postgres").catch(() => {
       throw new Error(
-        "PostgreSQL driver requires 'pg' package. Install it with: bun add pg",
+        "PostgreSQL driver requires 'postgres' package. Install it with: bun add postgres",
       )
     })
 
-    this.pool = new Pool({
-      connectionString: this.config.url,
+    this.sql = postgres.default(this.config.url, {
       max: this.poolSize,
     })
 
@@ -34,7 +33,7 @@ export class PostgresDriver implements StorageDriver.Driver {
   }
 
   private async createTables() {
-    await this.pool.query(`
+    await this.sql`
       CREATE TABLE IF NOT EXISTS storage (
         key TEXT PRIMARY KEY,
         type TEXT NOT NULL,
@@ -42,31 +41,31 @@ export class PostgresDriver implements StorageDriver.Driver {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
-    `)
+    `
 
-    await this.pool.query(`
+    await this.sql`
       CREATE INDEX IF NOT EXISTS idx_storage_type ON storage(type)
-    `)
+    `
 
-    await this.pool.query(`
+    await this.sql`
       CREATE INDEX IF NOT EXISTS idx_storage_created_at ON storage(created_at)
-    `)
+    `
 
-    await this.pool.query(`
+    await this.sql`
       CREATE INDEX IF NOT EXISTS idx_storage_content ON storage USING gin(content)
-    `)
+    `
 
-    await this.pool.query(`
+    await this.sql`
       CREATE TABLE IF NOT EXISTS migrations (
         version INTEGER PRIMARY KEY,
         applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
-    `)
+    `
   }
 
   private async runMigrations() {
-    const result = await this.pool.query("SELECT COALESCE(MAX(version), 0) as version FROM migrations")
-    const version = result.rows[0]?.version || 0
+    const result = await this.sql`SELECT COALESCE(MAX(version), 0) as version FROM migrations`
+    const version = result[0]?.version || 0
 
     // Add future migrations here if needed
     const migrations: (() => Promise<void>)[] = []
@@ -74,7 +73,7 @@ export class PostgresDriver implements StorageDriver.Driver {
     for (let i = version; i < migrations.length; i++) {
       this.log.info("running migration", { version: i + 1 })
       await migrations[i]()
-      await this.pool.query("INSERT INTO migrations (version) VALUES ($1)", [i + 1])
+      await this.sql`INSERT INTO migrations (version) VALUES (${i + 1})`
     }
   }
 
@@ -92,27 +91,26 @@ export class PostgresDriver implements StorageDriver.Driver {
 
   async read<T>(key: string[]): Promise<T> {
     const keyStr = this.keyToString(key)
-    const result = await this.pool.query("SELECT content FROM storage WHERE key = $1", [keyStr])
+    const result = await this.sql`SELECT content FROM storage WHERE key = ${keyStr}`
 
-    if (result.rows.length === 0) {
+    if (result.length === 0) {
       throw new NotFoundError({ message: `Resource not found: ${keyStr}` })
     }
 
-    return result.rows[0].content as T
+    return result[0].content as T
   }
 
   async write<T>(key: string[], content: T): Promise<void> {
     const keyStr = this.keyToString(key)
     const type = this.getType(key)
 
-    await this.pool.query(
-      `INSERT INTO storage (key, type, content, updated_at) 
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT(key) DO UPDATE SET 
-         content = EXCLUDED.content,
-         updated_at = EXCLUDED.updated_at`,
-      [keyStr, type, JSON.stringify(content)],
-    )
+    await this.sql`
+      INSERT INTO storage (key, type, content, updated_at) 
+      VALUES (${keyStr}, ${type}, ${JSON.stringify(content)}, NOW())
+      ON CONFLICT(key) DO UPDATE SET 
+        content = EXCLUDED.content,
+        updated_at = EXCLUDED.updated_at
+    `
   }
 
   async update<T>(key: string[], fn: (draft: T) => void): Promise<T> {
@@ -128,13 +126,12 @@ export class PostgresDriver implements StorageDriver.Driver {
     // Otherwise, match keys that start with "prefix/"
     const pattern = prefixStr ? `${prefixStr}/%` : "%"
 
-    const result = await this.pool.query(
-      "SELECT key FROM storage WHERE key LIKE $1 ORDER BY key", 
-      [pattern]
-    )
+    const result = await this.sql`
+      SELECT key FROM storage WHERE key LIKE ${pattern} ORDER BY key
+    `
 
     // Filter to ensure we only get exact prefix matches
-    return result.rows
+    return result
       .map((row: { key: string }) => this.stringToKey(row.key))
       .filter((key: string[]) => {
         if (prefix.length === 0) return true
@@ -148,11 +145,11 @@ export class PostgresDriver implements StorageDriver.Driver {
 
   async remove(key: string[]): Promise<void> {
     const keyStr = this.keyToString(key)
-    await this.pool.query("DELETE FROM storage WHERE key = $1", [keyStr])
+    await this.sql`DELETE FROM storage WHERE key = ${keyStr}`
   }
 
   async export(): Promise<StorageDriver.ExportData> {
-    const result = await this.pool.query("SELECT key, type, content FROM storage ORDER BY key")
+    const result = await this.sql`SELECT key, type, content FROM storage ORDER BY key`
 
     const data: StorageDriver.ExportData = {
       version: 1,
@@ -164,7 +161,7 @@ export class PostgresDriver implements StorageDriver.Driver {
       session_diffs: [],
     }
 
-    for (const row of result.rows) {
+    for (const row of result) {
       const key = this.stringToKey(row.key)
       const content = row.content
       const item = { key, content }
@@ -197,10 +194,7 @@ export class PostgresDriver implements StorageDriver.Driver {
   }
 
   async import(data: StorageDriver.ExportData): Promise<void> {
-    const client = await this.pool.connect()
-    try {
-      await client.query("BEGIN")
-
+    await this.sql.begin(async (sql: any) => {
       const categories = [
         { key: "projects", items: data.projects },
         { key: "sessions", items: data.sessions },
@@ -213,14 +207,13 @@ export class PostgresDriver implements StorageDriver.Driver {
         for (const item of items) {
           const keyStr = this.keyToString(item.key)
           const type = this.getType(item.key)
-          await client.query(
-            `INSERT INTO storage (key, type, content, updated_at) 
-             VALUES ($1, $2, $3, NOW())
-             ON CONFLICT(key) DO UPDATE SET 
-               content = EXCLUDED.content,
-               updated_at = EXCLUDED.updated_at`,
-            [keyStr, type, JSON.stringify(item.content)],
-          )
+          await sql`
+            INSERT INTO storage (key, type, content, updated_at) 
+            VALUES (${keyStr}, ${type}, ${JSON.stringify(item.content)}, NOW())
+            ON CONFLICT(key) DO UPDATE SET 
+              content = EXCLUDED.content,
+              updated_at = EXCLUDED.updated_at
+          `
         }
       }
 
@@ -231,31 +224,23 @@ export class PostgresDriver implements StorageDriver.Driver {
             for (const item of items) {
               const keyStr = this.keyToString(item.key)
               const type = this.getType(item.key)
-              await client.query(
-                `INSERT INTO storage (key, type, content, updated_at) 
-                 VALUES ($1, $2, $3, NOW())
-                 ON CONFLICT(key) DO UPDATE SET 
-                   content = EXCLUDED.content,
-                   updated_at = EXCLUDED.updated_at`,
-                [keyStr, type, JSON.stringify(item.content)],
-              )
+              await sql`
+                INSERT INTO storage (key, type, content, updated_at) 
+                VALUES (${keyStr}, ${type}, ${JSON.stringify(item.content)}, NOW())
+                ON CONFLICT(key) DO UPDATE SET 
+                  content = EXCLUDED.content,
+                  updated_at = EXCLUDED.updated_at
+              `
             }
           }
         }
       }
-
-      await client.query("COMMIT")
-    } catch (error) {
-      await client.query("ROLLBACK")
-      throw error
-    } finally {
-      client.release()
-    }
+    })
   }
 
   async close() {
-    if (this.pool) {
-      await this.pool.end()
+    if (this.sql) {
+      await this.sql.end()
     }
   }
 }
