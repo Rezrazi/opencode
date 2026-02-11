@@ -114,13 +114,25 @@ export class SqliteDriver implements StorageDriver.Driver {
 
   async list(prefix: string[]): Promise<string[][]> {
     const prefixStr = this.keyToString(prefix)
-    const pattern = prefixStr + (prefixStr ? "/" : "") + "%"
+    // If prefix is empty, match all keys
+    // Otherwise, match keys that start with "prefix/"
+    const pattern = prefixStr ? `${prefixStr}/%` : "%"
 
-    const rows = this.db.query<{ key: string }, [string]>("SELECT key FROM storage WHERE key LIKE ? ORDER BY key").all(
-      pattern,
-    )
+    const rows = this.db.query<{ key: string }, [string]>(
+      "SELECT key FROM storage WHERE key LIKE ? ORDER BY key"
+    ).all(pattern)
 
-    return rows.map((row) => this.stringToKey(row.key))
+    // Filter to ensure we only get exact prefix matches
+    return rows
+      .map((row) => this.stringToKey(row.key))
+      .filter((key) => {
+        if (prefix.length === 0) return true
+        // Ensure the key starts with the exact prefix
+        for (let i = 0; i < prefix.length; i++) {
+          if (key[i] !== prefix[i]) return false
+        }
+        return true
+      })
   }
 
   async remove(key: string[]): Promise<void> {

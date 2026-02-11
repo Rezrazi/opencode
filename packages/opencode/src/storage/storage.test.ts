@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
-import { JsonDriver } from "../src/storage/json-driver"
-import { SqliteDriver } from "../src/storage/sqlite-driver"
+import { JsonDriver } from "./json-driver"
+import { SqliteDriver } from "./sqlite-driver"
 import path from "path"
 import fs from "fs/promises"
 import os from "os"

@@ -82,12 +82,12 @@ export namespace StorageDriver {
   export interface ExportData {
     version: number
     timestamp: number
-    projects: Record<string, any>[]
-    sessions: Record<string, any>[]
-    messages: Record<string, any>[]
-    parts: Record<string, any>[]
-    session_diffs: Record<string, any>[]
-    [key: string]: any
+    projects: Array<{ key: string[]; content: any }>
+    sessions: Array<{ key: string[]; content: any }>
+    messages: Array<{ key: string[]; content: any }>
+    parts: Array<{ key: string[]; content: any }>
+    session_diffs: Array<{ key: string[]; content: any }>
+    [key: string]: number | Array<{ key: string[]; content: any }>
   }
 
   /**

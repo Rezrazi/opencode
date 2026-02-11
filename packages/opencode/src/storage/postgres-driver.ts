@@ -124,11 +124,26 @@ export class PostgresDriver implements StorageDriver.Driver {
 
   async list(prefix: string[]): Promise<string[][]> {
     const prefixStr = this.keyToString(prefix)
-    const pattern = prefixStr + (prefixStr ? "/" : "") + "%"
+    // If prefix is empty, match all keys
+    // Otherwise, match keys that start with "prefix/"
+    const pattern = prefixStr ? `${prefixStr}/%` : "%"
 
-    const result = await this.pool.query("SELECT key FROM storage WHERE key LIKE $1 ORDER BY key", [pattern])
+    const result = await this.pool.query(
+      "SELECT key FROM storage WHERE key LIKE $1 ORDER BY key", 
+      [pattern]
+    )
 
-    return result.rows.map((row: { key: string }) => this.stringToKey(row.key))
+    // Filter to ensure we only get exact prefix matches
+    return result.rows
+      .map((row: { key: string }) => this.stringToKey(row.key))
+      .filter((key: string[]) => {
+        if (prefix.length === 0) return true
+        // Ensure the key starts with the exact prefix
+        for (let i = 0; i < prefix.length; i++) {
+          if (key[i] !== prefix[i]) return false
+        }
+        return true
+      })
   }
 
   async remove(key: string[]): Promise<void> {
