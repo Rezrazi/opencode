@@ -1169,6 +1169,24 @@ export namespace Config {
             .describe("Token buffer for compaction. Leaves enough window to avoid overflow during compaction."),
         })
         .optional(),
+      storage: z
+        .discriminatedUnion("driver", [
+          z.object({
+            driver: z.literal("json").describe("JSON file-based storage (default)"),
+            path: z.string().optional().describe("Base path for JSON files (defaults to XDG data directory)"),
+          }),
+          z.object({
+            driver: z.literal("sqlite").describe("SQLite database storage"),
+            database: z.string().optional().describe("Path to SQLite database file (defaults to storage/opencode.db)"),
+          }),
+          z.object({
+            driver: z.literal("postgres").describe("PostgreSQL database storage"),
+            url: z.string().describe("PostgreSQL connection URL (e.g., postgres://user:pass@host:5432/db)"),
+            poolSize: z.number().optional().describe("Connection pool size (default: 10)"),
+          }),
+        ])
+        .optional()
+        .describe("Storage backend configuration. Defaults to JSON file storage."),
       experimental: z
         .object({
           disable_paste_summary: z.boolean().optional(),
