@@ -1,10 +1,16 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "version": "1.2.27",
-  "name": "opencode",
+  "name": "@rezrazi/opencode",
   "type": "module",
   "license": "MIT",
-  "private": true,
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "files": [
+    "src",
+    "migration"
+  ],
   "scripts": {
     "typecheck": "tsgo --noEmit",
     "test": "bun test --timeout 30000",
@@ -52,6 +58,7 @@
     "drizzle-orm": "1.0.0-beta.16-ea816b6",
     "typescript": "catalog:",
     "vscode-languageserver-types": "3.17.5",
+    "@rezrazi/opencode-sdk": "workspace:*",
     "why-is-node-running": "3.2.2",
     "zod-to-json-schema": "3.24.5"
   },
@@ -90,7 +97,6 @@
     "@openauthjs/openauth": "catalog:",
     "@opencode-ai/plugin": "workspace:*",
     "@opencode-ai/script": "workspace:*",
-    "@opencode-ai/sdk": "workspace:*",
     "@opencode-ai/util": "workspace:*",
     "@openrouter/ai-sdk-provider": "1.5.4",
     "@opentui/core": "0.1.87",

@@ -1,4 +1,4 @@
-import type { Message, Session, TextPart, UserMessage } from "@opencode-ai/sdk/v2/client"
+import type { Message, Session, TextPart, UserMessage } from "@rezrazi/opencode-sdk/v2/client"
 import { Avatar } from "@opencode-ai/ui/avatar"
 import { HoverCard } from "@opencode-ai/ui/hover-card"
 import { Icon } from "@opencode-ai/ui/icon"

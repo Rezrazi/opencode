@@ -16,7 +16,7 @@
     "dist"
   ],
   "dependencies": {
-    "@opencode-ai/sdk": "workspace:*",
+    "@rezrazi/opencode-sdk": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

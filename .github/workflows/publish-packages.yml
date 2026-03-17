@@ -1,0 +1,35 @@
+name: publish-packages
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-bun
+
+      - name: Configure npm for GitHub Packages
+        run: |
+          echo "@rezrazi:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+
+      - name: Publish @rezrazi/opencode
+        working-directory: packages/opencode
+        run: bun run script/publish-pkg.ts
+
+      - name: Build SDK
+        working-directory: packages/sdk/js
+        run: bun tsc
+
+      - name: Publish @rezrazi/opencode-sdk
+        working-directory: packages/sdk/js
+        run: bun run script/publish.ts

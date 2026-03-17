@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/charaf/projects/opencode/.github/workflows -type f -name *.yml -o -name *.yaml)",
+      "Bash(find /Users/charaf/projects/opencode/packages/sdk -type f \\\\\\(-name *.md -o -name *.json -o -name README* \\\\\\))",
+      "Bash(find /Users/charaf/projects/opencode/packages -name tsup.config.* -o -name esbuild.config.* -o -name vite.config.*)",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(xargs sed:*)",
+      "Bash(grep:*)",
+      "Bash(bun install:*)"
+    ]
+  }
+}
