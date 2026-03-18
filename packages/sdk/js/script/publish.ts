@@ -9,6 +9,7 @@ process.chdir(dir)
 
 const pkg = (await import("../package.json").then((m) => m.default)) as {
   version: string
+  scripts?: Record<string, string>
   exports: Record<string, string | object>
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
@@ -71,3 +72,4 @@ try {
 } finally {
   await Bun.write("package.json", JSON.stringify(original, null, 2))
 }
+if (pkg.scripts) delete pkg.scripts.prepublishOnly
