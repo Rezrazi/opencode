@@ -9,16 +9,31 @@
   },
   "scripts": {
     "typecheck": "tsgo --noEmit",
-    "build": "bun ./script/build.ts"
+    "build": "bun ./script/build.ts",
+    "publish": "bun ./script/publish.ts",
+    "prepublishOnly": "bun x tsc -p tsconfig.json"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./client": "./src/client.ts",
-    "./server": "./src/server.ts",
-    "./v2": "./src/v2/index.ts",
-    "./v2/client": "./src/v2/client.ts",
-    "./v2/gen/client": "./src/v2/gen/client/index.ts",
-    "./v2/server": "./src/v2/server.ts"
+    ".": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./v2": {
+      "types": "./dist/v2/client.d.ts",
+      "import": "./dist/v2/client.js"
+    },
+    "./v2/client": {
+      "types": "./dist/v2/client.d.ts",
+      "import": "./dist/v2/client.js"
+    },
+    "./v2/gen/client": {
+      "types": "./dist/v2/gen/client/index.d.ts",
+      "import": "./dist/v2/gen/client/index.js"
+    }
   },
   "files": [
     "dist"
