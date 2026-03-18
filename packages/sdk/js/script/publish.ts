@@ -13,6 +13,7 @@ const pkg = (await import("../package.json").then((m) => m.default)) as {
   exports: Record<string, string | object>
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
+  peerDependencies?: Record<string, string>
 }
 const original = JSON.parse(JSON.stringify(pkg))
 
@@ -35,6 +36,7 @@ async function resolveCatalogDeps(deps: Record<string, string> | undefined) {
 
 resolveWorkspaceDeps(pkg.dependencies)
 resolveWorkspaceDeps(pkg.devDependencies)
+resolveWorkspaceDeps(pkg.peerDependencies)
 await resolveCatalogDeps(pkg.dependencies)
 await resolveCatalogDeps(pkg.devDependencies)
 
