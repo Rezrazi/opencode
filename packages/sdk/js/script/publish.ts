@@ -63,6 +63,7 @@ try {
     "npm",
     "publish",
     file,
+    "--ignore-scripts",
     "--tag",
     Script.channel,
     "--registry=https://npm.pkg.github.com",
