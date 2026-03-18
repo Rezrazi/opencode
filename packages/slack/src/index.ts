@@ -1,5 +1,5 @@
+import { createOpencodeClient, type OpencodeClient, type Part, type ToolPart } from "@rezrazi/opencode-sdk"
 import { App } from "@slack/bolt"
-import { createOpencode, type ToolPart } from "@rezrazi/opencode-sdk"
 
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
@@ -13,21 +13,19 @@ console.log("- Bot token present:", !!process.env.SLACK_BOT_TOKEN)
 console.log("- Signing secret present:", !!process.env.SLACK_SIGNING_SECRET)
 console.log("- App token present:", !!process.env.SLACK_APP_TOKEN)
 
-console.log("🚀 Starting opencode server...")
-const opencode = await createOpencode({
-  port: 0,
-})
-console.log("✅ Opencode server ready")
+const baseUrl = process.env.OPENCODE_BASE_URL ?? "http://localhost:4096"
+console.log("🔗 Connecting to opencode server:", baseUrl)
+const client = createOpencodeClient({ baseUrl })
 
-const sessions = new Map<string, { client: any; server: any; sessionId: string; channel: string; thread: string }>()
+const sessions = new Map<string, { client: OpencodeClient; sessionId: string; channel: string; thread: string }>()
 ;(async () => {
-  const events = await opencode.client.event.subscribe()
+  const events = await client.event.subscribe()
   for await (const event of events.stream) {
     if (event.type === "message.part.updated") {
       const part = event.properties.part
       if (part.type === "tool") {
         // Find the session for this tool update
-        for (const [sessionKey, session] of sessions.entries()) {
+        for (const [, session] of sessions.entries()) {
           if (session.sessionId === part.sessionID) {
             handleToolUpdate(part, session.channel, session.thread)
             break
@@ -66,15 +64,13 @@ app.message(async ({ message, say }) => {
   console.log("✅ Processing message:", message.text)
 
   const channel = message.channel
-  const thread = (message as any).thread_ts || message.ts
-  const sessionKey = `${channel}-${thread}`
+  const thread = (message as { thread_ts?: string; ts: string }).thread_ts || message.ts
+  const key = `${channel}-${thread}`
 
-  let session = sessions.get(sessionKey)
+  let session = sessions.get(key)
 
   if (!session) {
     console.log("🆕 Creating new opencode session...")
-    const { client, server } = opencode
-
     const createResult = await client.session.create({
       body: { title: `Slack thread ${thread}` },
     })
@@ -90,12 +86,12 @@ app.message(async ({ message, say }) => {
 
     console.log("✅ Created opencode session:", createResult.data.id)
 
-    session = { client, server, sessionId: createResult.data.id, channel, thread }
-    sessions.set(sessionKey, session)
+    session = { client, sessionId: createResult.data.id, channel, thread }
+    sessions.set(key, session)
 
     const shareResult = await client.session.share({ path: { id: createResult.data.id } })
-    if (!shareResult.error && shareResult.data) {
-      const sessionUrl = shareResult.data.share?.url!
+    const sessionUrl = shareResult.data?.share?.url
+    if (!shareResult.error && sessionUrl) {
       console.log("🔗 Session shared:", sessionUrl)
       await app.client.chat.postMessage({ channel, thread_ts: thread, text: sessionUrl })
     }
@@ -122,12 +118,10 @@ app.message(async ({ message, say }) => {
 
   // Build response text
   const responseText =
-    response.info?.content ||
     response.parts
-      ?.filter((p: any) => p.type === "text")
-      .map((p: any) => p.text)
-      .join("\n") ||
-    "I received your message but didn't have a response."
+      ?.filter((p: Part) => p.type === "text")
+      .map((p: Part) => (p.type === "text" ? p.text : ""))
+      .join("\n") || "I received your message but didn't have a response."
 
   console.log("💬 Sending response:", responseText)
 
